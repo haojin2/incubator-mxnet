@@ -1220,13 +1220,13 @@ def test_sparse_dot():
                 for forward_stype in all_stypes:
                     lhs = lhs_nd.tostype(lhs_stype)
                     rhs = rhs_nd.tostype(rhs_stype)
-                    out = mx.nd.dot(lhs, rhs, forward_stype_hint=forward_stype,
+                    out = mx.nd.dot(lhs, rhs, forward_stype=forward_stype,
                                     transpose_a=trans_a, transpose_b=trans_b)
                     assert_almost_equal(out.tostype('default').asnumpy(), out_np, rtol=1e-4, atol=1e-5)
                     lhs_var = mx.symbol.Variable('lhs', stype=lhs_stype)
                     rhs_var = mx.symbol.Variable('rhs', stype=rhs_stype)
                     out = mx.symbol.sparse.dot(lhs_var, rhs_var,
-                                               forward_stype_hint=forward_stype,
+                                               forward_stype=forward_stype,
                                                transpose_a=trans_a, transpose_b=trans_b)
                     location = {'lhs': lhs, 'rhs': rhs}
                     check_symbolic_forward(out, location, [out_np], rtol=1e-3, atol=1e-4)
@@ -1300,7 +1300,7 @@ def test_sparse_dot():
         sps_out = mx.nd.sparse.dot(lhs.tostype('csr'), rhs.tostype('row_sparse'), transpose_a=trans_lhs)
         assert same(dns_out.asnumpy(), sps_out.asnumpy())
 
-    density = [1.00, 0.50, 0.01]
+    density = [1.00, 0.5, 0.01]
     for lhs_d in density:
         lhs_shape = rand_shape_2d(50, 200)
         rhs_d = 1
@@ -1324,6 +1324,31 @@ def test_sparse_dot():
 
     test_sparse_dot_zero_output(rand_shape_2d(50, 200), False, 40)
     test_sparse_dot_zero_output(rand_shape_2d(50, 200), True, 40)
+
+
+@with_seed()
+def test_sparse_dot_determinism():
+    def test_dot_determinism(lhs_stype, rhs_stype, lhs_density, rhs_density, transpose_a, transpose_b):
+        lhs_row = rnd.randint(200, 400)
+        lhs_col = rnd.randint(200, 400)
+        if transpose_a:
+            if transpose_b:
+                rhs_shape = (rnd.randint(200, 400), lhs_row)
+            else:
+                rhs_shape = (lhs_row, rnd.randint(200, 400))
+        else:
+            if transpose_b:
+                rhs_shape = (rnd.randint(200, 400), lhs_col)
+            else:
+                rhs_shape = (lhs_col, rnd.randint(200, 400))
+        lhs_shape = (lhs_row, lhs_col)
+        lhs = rand_ndarray(lhs_shape, lhs_stype, density=lhs_density)
+        rhs = rand_ndarray(rhs_shape, rhs_stype, density=rhs_density)
+        res1 = mx.nd.sparse.dot(lhs, rhs, transpose_a=transpose_a, transpose_b=transpose_b)
+        res2 = mx.nd.sparse.dot(lhs, rhs, transpose_a=transpose_a, transpose_b=transpose_b)
+        assert_almost_equal(res1.asnumpy(), res2.asnumpy(), rtol=0.0, atol=0.0)
+    test_dot_determinism('default', 'csr', 1.0, 0.1, False, False)
+    test_dot_determinism('default', 'csr', 1.0, 0.1, False, True)
 
 
 @with_seed()
