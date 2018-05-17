@@ -28,6 +28,33 @@
 namespace mxnet {
 namespace op {
 
+template<typename OP>
+void ElemwiseBinaryOp::RspRspOp(mshadow::Stream<gpu> *s,
+                                const nnvm::NodeAttrs &attrs,
+                                const OpContext &ctx,
+                                const NDArray &lhs,
+                                const NDArray &rhs,
+                                const OpReqType req,
+                                const NDArray &output,
+                                const bool lhs_may_be_dense,
+                                const bool rhs_may_be_dense,
+                                const bool allow_inplace,
+                                const bool scatter) {
+  LOG(FATAL) << "GPU not supported for RspRspOp";
+}
+
+/*! \brief CSR -op- CSR binary operator for non-canonical NDArray */
+template<typename OP>
+void ElemwiseBinaryOp::CsrCsrOp(mshadow::Stream<gpu> *s,
+                                const nnvm::NodeAttrs &attrs,
+                                const OpContext &ctx,
+                                const NDArray &lhs,
+                                const NDArray &rhs,
+                                const OpReqType req,
+                                const NDArray &output) {
+  LOG(FATAL) << "GPU not supported for CsrCsrOp";
+}
+
 NNVM_REGISTER_OP(elemwise_add)
 .set_attr<FCompute>("FCompute<gpu>", ElemwiseBinaryOp::ComputeWithHalf2<gpu, op::mshadow_op::plus>)
 .set_attr<FComputeEx>("FComputeEx<gpu>", ElemwiseBinaryOp::ComputeEx<gpu, op::mshadow_op::plus>);
