@@ -309,7 +309,8 @@ struct Take {
   template<typename DType, typename IType>
   MSHADOW_XINLINE static void Map(int i, DType* out_data, const DType* in_data,
                                   const IType* idx, const int M, const int K) {
-    int j = static_cast<int>(idx[i/M]);
+    // int j = static_cast<int>(idx[i/M]);
+    int j = static_cast<int>(idx[i]);
     if (clip) {
       if (j <= 0) j = 0;
       else if (j >= K) j = K - 1;
@@ -317,7 +318,8 @@ struct Take {
       j = j % K;
       j += (j < 0) ? K : 0;
     }
-    out_data[i] = in_data[j * M + i % M];
+    // out_data[i] = in_data[j * M + i % M];
+    std::memcpy(out_data + i * M, in_data + j * M, M * sizeof(DType));
   }
 
   /*!
@@ -843,13 +845,13 @@ void TakeOpForward(const nnvm::NodeAttrs& attrs,
     MSHADOW_TYPE_SWITCH(inputs[1].type_flag_, IType, {  // index data type
       if (actual_axis == 0) {
         if (param.mode == take_::kClip) {
-          Kernel<Take<true>, xpu>::Launch(s, oshape.Size(),
+          Kernel<Take<true>, xpu>::Launch(s, idxshape.Size(),
                                           outputs[take_::kOut].dptr<DType>(),
                                           inputs[take_::kArr].dptr<DType>(),
                                           inputs[take_::kIdx].dptr<IType>(),
                                           oshape.Size()/idxshape.Size(), arrshape[0]);
         } else {
-          Kernel<Take<false>, xpu>::Launch(s, oshape.Size(),
+          Kernel<Take<false>, xpu>::Launch(s, idxshape.Size(),
                                            outputs[take_::kOut].dptr<DType>(),
                                            inputs[take_::kArr].dptr<DType>(),
                                            inputs[take_::kIdx].dptr<IType>(),
