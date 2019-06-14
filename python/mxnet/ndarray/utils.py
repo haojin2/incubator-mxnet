@@ -168,11 +168,13 @@ def load(fname):
     out_name_size = mx_uint()
     handles = ctypes.POINTER(NDArrayHandle)()
     names = ctypes.POINTER(ctypes.c_char_p)()
+    set_np_shape(False)
     check_call(_LIB.MXNDArrayLoad(c_str(fname),
                                   ctypes.byref(out_size),
                                   ctypes.byref(handles),
                                   ctypes.byref(out_name_size),
                                   ctypes.byref(names)))
+    set_np_shape(True)
     if out_name_size.value == 0:
         return [_ndarray_cls(NDArrayHandle(handles[i])) for i in range(out_size.value)]
     else:
