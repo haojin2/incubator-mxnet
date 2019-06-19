@@ -396,6 +396,52 @@ def test_np_unary_funcs():
 
 @with_seed()
 @npx.use_np_shape
+def test_np_elemwise_binary_funcs():
+    def check_binary_func(func, ref_grad, shape, low, high, dtype):
+        @npx.use_np_shape
+        class TestBinary(HybridBlock):
+            def __init__(self, func):
+                super(TestBinary, self).__init__()
+                self._func = func
+
+            def hybrid_forward(self, F, x1, x2, *args, **kwargs):
+                return getattr(F.np, self._func)(x1, x2)
+
+        np_func = getattr(_np, func)
+        mx_func = TestBinary(func)
+        np_test_x1 = _np.random.uniform(low, high, shape).astype(dtype)
+        np_test_x2 = _np.random.uniform(low, high, shape).astype(dtype)
+        mx_test_x1 = mx.numpy.array(np_test_x1)
+        mx_test_x2 = mx.numpy.array(np_test_x2)
+        for hybridize in [True, False]:
+            if hybridize:
+                mx_func.hybridize()
+            if ref_grad:
+                mx_test_data.attach_grad()
+            np_out = np_func(np_test_x1, np_test_x2)
+            with mx.autograd.record():
+                y = mx_func(mx_test_x1, mx_test_x2)
+            assert y.shape == np_out.shape
+            assert_almost_equal(y.asnumpy(), np_out, rtol=1e-3, atol=1e-5)
+
+            if ref_grad:
+                y.backward()
+                assert_almost_equal(mx_test_data.grad.asnumpy(), ref_grad(np_test_data), rtol=1e-5, atol=1e-6, equal_nan=True)
+
+    funcs = {
+        'floor_divide' : (None, -10.0, 10.0, [_np.int32, _np.float32]),
+    }
+    ndim = random.choice([2, 3, 4])
+    shape = random.choice([rand_shape_nd(ndim, dim=3), (1, 0, 2)])
+    for shape in [rand_shape_nd(ndim, dim=3), (1, 0, 2)]:
+        for func, func_data in funcs.items():
+            ref_grad, low, high, dtypes = func_data
+            for dtype in dtypes:
+                check_binary_func(func, ref_grad, shape, low, high, dtype)
+
+
+@with_seed()
+@npx.use_np_shape
 def test_np_stack():
     @npx.use_np_shape
     class TestStack(HybridBlock):
