@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <vector>
+#include "../nn/moments-inl.h"
 #include "../tensor/broadcast_reduce_op.h"
 
 namespace mxnet {
@@ -207,7 +208,6 @@ inline void NumpyReduceAxesBackwardUseNone(const nnvm::NodeAttrs& attrs,
     Stream<xpu> *s = ctx.get_stream<xpu>();
     MSHADOW_TYPE_SWITCH(outputs[0].type_flag_, IType, {
       Tensor<xpu, 1, IType> igrad = outputs[0].FlatTo1D<xpu, IType>(s);
-      printf("output size: %lu input_size: %lu\n", outputs[0].Size(), inputs[0].Size());
       igrad /= scalar<IType>(outputs[0].Size()/inputs[0].Size());
     });
   }
@@ -229,6 +229,221 @@ void NumpyReduceAxesBackwardUseInOut(const nnvm::NodeAttrs& attrs,
     small = NumpyReduceAxesShapeImpl(outputs[0].shape_, param.axis, true);
   }
   ReduceAxesBackwardUseInOutImpl<xpu, OP, normalize>(ctx, small, inputs, req, outputs);
+}
+
+struct NumpyMomentsParam : public dmlc::Parameter<NumpyMomentsParam> {
+  dmlc::optional<mxnet::Tuple<int>> axis;
+  dmlc::optional<int> dtype;
+  bool keepdims;
+  int ddof;
+  DMLC_DECLARE_PARAMETER(NumpyMomentsParam) {
+    DMLC_DECLARE_FIELD(axis)
+      .set_default(dmlc::optional<mxnet::Tuple<int>>())
+      .describe("Axis or axes along which a sum is performed. The default, axis=None, will sum "
+                "all of the elements of the input array. If axis is negative it counts from the "
+                "last to the first axis.");
+    DMLC_DECLARE_FIELD(dtype)
+      .add_enum("float16", mshadow::kFloat16)
+      .add_enum("float32", mshadow::kFloat32)
+      .add_enum("float64", mshadow::kFloat64)
+      .add_enum("int8", mshadow::kInt8)
+      .add_enum("int32", mshadow::kInt32)
+      .add_enum("int64", mshadow::kInt64)
+      .set_default(dmlc::optional<int>())
+      .describe("The type of the returned array and of the accumulator in which the elements are "
+                "summed. The dtype of a is used by default unless a has an integer dtype of less "
+                "precision than the default platform integer. In that case, if a is signed then "
+                "the platform integer is used while if a is unsigned then an unsigned integer of "
+                "the same precision as the platform integer is used.");
+    DMLC_DECLARE_FIELD(keepdims).set_default(false)
+      .describe("If this is set to `True`, the reduced axes are left "
+                "in the result as dimension with size one.");
+    DMLC_DECLARE_FIELD(ddof).set_default(0)
+      .describe("Starting value for the sum.");
+  }
+};
+
+template<typename xpu, typename reducer, bool safe_acc, bool normalize = false,
+         typename OP = op::mshadow_op::identity>
+void ReduceAxesComputeWithWorkspaceImpl(const OpContext& ctx,
+                                        const std::vector<TBlob>& inputs,
+                                        const std::vector<OpReqType>& req,
+                                        const std::vector<TBlob>& outputs,
+                                        mshadow::Tensor<xpu, 1, char>& workspace,
+                                        const mxnet::TShape& src_shape,
+                                        const mxnet::TShape& dst_shape,
+                                        const int ddof = 0) {
+  using namespace mshadow;
+  using namespace mshadow::expr;
+
+  Stream<xpu> *s = ctx.get_stream<xpu>();
+  MSHADOW_TYPE_SWITCH(inputs[0].type_flag_, DType, {
+    MSHADOW_TYPE_SWITCH(outputs[0].type_flag_, OType, {
+      const TBlob in_data = inputs[0].reshape(src_shape);
+      const TBlob out_data = outputs[0].reshape(dst_shape);
+      BROADCAST_NDIM_SWITCH(dst_shape.ndim(), NDim, {
+        broadcast::Reduce<reducer, NDim, DType, OP, safe_acc>(
+            s, out_data, req[0], workspace, in_data);
+        if (normalize) {
+          auto out = out_data.FlatTo2D<xpu, OType>(s);
+          out /= scalar<OType>(src_shape.Size()/dst_shape.Size() - ddof);
+        }
+      });
+    });
+  });
+}
+
+template<typename xpu, bool sqrt>
+void NumpyMomentsForward(const nnvm::NodeAttrs& attrs,
+                         const OpContext& ctx,
+                         const std::vector<TBlob>& inputs,
+                         const std::vector<OpReqType>& req,
+                         const std::vector<TBlob>& outputs) {
+  using namespace mshadow;
+  using namespace mshadow::expr;
+  using namespace mshadow_op;
+  using namespace mxnet_op;
+
+  CHECK_EQ(inputs.size(), 1U);
+  CHECK_EQ(req.size(), 2U);
+  CHECK_EQ(outputs.size(), 2U);
+
+  const NumpyMomentsParam& param = nnvm::get<NumpyMomentsParam>(attrs.parsed);
+
+  Stream<xpu> *s = ctx.get_stream<xpu>();
+
+  const TBlob& data = inputs[0];
+  const TBlob& moment = outputs[0];
+  const TBlob& mean = outputs[1];
+
+  mxnet::TShape small;
+  if (param.keepdims) {
+    small = moment.shape_;
+  } else {
+    small = NumpyReduceAxesShapeImpl(data.shape_, param.axis, true);
+  }
+
+  mxnet::TShape src_shape, dst_shape;
+  BroadcastReduceShapeCompact(data.shape_, small, &src_shape, &dst_shape);
+
+  MSHADOW_TYPE_SWITCH(inputs[0].type_flag_, DType, {
+    MSHADOW_TYPE_SWITCH(outputs[0].type_flag_, OType, {
+      // Get workspace and temp space for data - mean
+      size_t workspace_size = 0;
+      BROADCAST_NDIM_SWITCH(dst_shape.ndim(), NDim, {
+        workspace_size = broadcast::ReduceWorkspaceSize<NDim, DType>(
+          s, dst_shape, req[0], src_shape);;
+      });
+      size_t temp_data_size = data.shape_.Size() * sizeof(DType);
+      size_t temp_mem_size = temp_data_size + workspace_size;
+      Tensor<xpu, 1, char> temp_mem =
+        ctx.requested[0].get_space_typed<xpu, 1, char>(Shape1(temp_mem_size), s);
+      DType *temp_data_ptr = reinterpret_cast<DType*>(temp_mem.dptr_);
+      char *workspace_ptr = temp_mem.dptr_ + temp_data_size;
+      Tensor<xpu, 1, char> workspace(workspace_ptr, Shape1(workspace_size), s);
+      // Compute mean
+      ReduceAxesComputeWithWorkspaceImpl<xpu, mshadow_op::sum, true, true>(
+        ctx, inputs, {kWriteTo}, {mean}, workspace, src_shape, dst_shape);
+      // Compute data - mean
+      Shape<6> data_shape, mean_shape;
+      for (int i = 0; i < 6; ++i) {
+        data_shape[i] = (i < data.shape_.ndim()) ? data.shape_[i] : 1;
+        mean_shape[i] = (i < small.ndim()) ? small[i] : 1;
+      }
+      Kernel<VarBroadcastKernel, xpu>::Launch(s, data_shape.Size(), temp_data_ptr,
+        data.dptr<DType>(), mean.dptr<DType>(), data_shape, mean_shape);
+      Tensor<xpu, 1, DType> temp_data_tensor(temp_data_ptr, Shape1(data.shape_.Size()), s);
+      TBlob temp_data_blob = TBlob(temp_data_tensor).reshape(data.shape_);
+      ReduceAxesComputeWithWorkspaceImpl<xpu, mshadow_op::sum, true, true>(
+        ctx, {temp_data_blob}, {req[0]}, {moment}, workspace, src_shape, dst_shape, param.ddof);
+      if (sqrt) {
+        Tensor<xpu, 1, OType> moment_tensor = moment.FlatTo1D<xpu, OType>(s);
+        moment_tensor = F<mshadow_op::square_root>(moment_tensor);
+      }
+    });
+  });
+}
+
+template<int req>
+struct StdBackwardKernel {
+  template<typename DType, typename OType>
+  MSHADOW_XINLINE static void Map(int i,
+                                  DType *igrad,
+                                  const OType *ograd,
+                                  const DType *data,
+                                  const DType *mean,
+                                  const OType *std,
+                                  mshadow::Shape<6> data_shape,
+                                  mshadow::Shape<6> mean_shape,
+                                  const float N,
+                                  const float ddof = 0.0f) {
+    size_t data_idx = i;
+    size_t mean_idx = i;
+    size_t data_stride = 1;
+    size_t mean_stride = 1;
+    for (int axis = 5; axis >= 0; --axis) {
+      size_t axis_idx = data_idx % data_shape[axis];
+      mean_idx -= axis_idx * data_stride;
+      if (mean_shape[axis] != 1) {
+        mean_idx += axis_idx * mean_stride;
+      }
+      data_idx /= data_shape[axis];
+      data_stride *= data_shape[axis];
+      mean_stride *= mean_shape[axis];
+    }
+    KERNEL_ASSIGN(igrad[i], req,
+                  ograd[mean_idx] * (data[i] - mean[mean_idx]) / ((N - ddof) * std[mean_idx]));
+  }
+};
+
+template<typename xpu, bool sqrt>
+void NumpyMomentsBackward(const nnvm::NodeAttrs& attrs,
+                          const OpContext& ctx,
+                          const std::vector<TBlob>& inputs,
+                          const std::vector<OpReqType>& req,
+                          const std::vector<TBlob>& outputs) {
+  using namespace mshadow;
+  using namespace mshadow_op;
+  using namespace mxnet_op;
+  CHECK_EQ(inputs.size(), 5U);
+  CHECK_EQ(req.size(), 1U);
+  CHECK_EQ(outputs.size(), 1U);
+
+  const NumpyMomentsParam& param = nnvm::get<NumpyMomentsParam>(attrs.parsed);
+
+  const TBlob& data_grad = outputs[0];
+  const TBlob& moment_grad = inputs[0];
+  const TBlob& data = inputs[2];
+  const TBlob& moment = inputs[3];
+  const TBlob& mean = inputs[4];
+
+  Stream<xpu> *s = ctx.get_stream<xpu>();
+
+  mxnet::TShape small = NumpyReduceAxesShapeImpl(data.shape_, param.axis, true);
+
+  Shape<6> data_shape, moment_shape;
+  float N = data_grad.Size() / moment_grad.Size();
+  for (int i = 0; i < 6; ++i) {
+    data_shape[i] = (i < data.shape_.ndim()) ? data.shape_[i] : 1;
+    moment_shape[i] = (i < small.ndim()) ? small[i] : 1;
+  }
+  MSHADOW_TYPE_SWITCH(data_grad.type_flag_, DType, {
+    MSHADOW_TYPE_SWITCH(moment_grad.type_flag_, OType, {
+      MXNET_REQ_TYPE_SWITCH(req[0], Req, {
+        if (sqrt) {
+          Kernel<StdBackwardKernel<Req>, xpu>::Launch(
+            s, data_grad.shape_.Size(), data_grad.dptr<DType>(), moment_grad.dptr<OType>(),
+            data.dptr<DType>(), mean.dptr<DType>(), moment.dptr<OType>(), data_shape,
+            moment_shape, N, static_cast<float>(param.ddof));
+        } else {
+          Kernel<VarBackwardKernel<Req>, xpu>::Launch(
+            s, data_grad.shape_.Size(), data_grad.dptr<DType>(), moment_grad.dptr<OType>(),
+            data.dptr<DType>(), mean.dptr<DType>(), data_shape, moment_shape, N,
+            static_cast<float>(param.ddof));
+        }
+      });
+    });
+  });
 }
 
 template<typename xpu>

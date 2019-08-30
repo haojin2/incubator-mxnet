@@ -52,7 +52,7 @@ __all__ = ['ndarray', 'empty', 'array', 'zeros', 'ones', 'full', 'add', 'subtrac
            'degrees', 'log2', 'log1p', 'rint', 'radians', 'reciprocal', 'square', 'negative',
            'fix', 'ceil', 'floor', 'trunc', 'logical_not', 'arcsinh', 'arccosh', 'arctanh',
            'tensordot', 'linspace', 'expand_dims', 'tile', 'arange', 'split', 'concatenate',
-           'stack', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax']
+           'stack', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax', 'std', 'var']
 
 # Return code for dispatching indexing function call
 _NDARRAY_UNSUPPORTED_INDEXING = -1
@@ -3588,3 +3588,17 @@ def argmax(a, axis=None, out=None):
     array([2., 2.])
     """
     return _mx_nd_np.argmax(a, axis, out)
+
+
+@set_module('mxnet.numpy')
+def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=None):
+    """
+    """
+    return _npi.std(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)
+
+
+@set_module('mxnet.numpy')
+def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=None):
+    """
+    """
+    return _npi.var(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)

@@ -33,7 +33,7 @@ __all__ = ['zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mo
            'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor',
            'trunc', 'logical_not', 'arcsinh', 'arccosh', 'arctanh', 'tensordot',
            'linspace', 'expand_dims', 'tile', 'arange', 'split', 'concatenate', 'stack',
-           'maximum', 'minimum', 'swapaxes', 'clip', 'argmax']
+           'maximum', 'minimum', 'swapaxes', 'clip', 'argmax', 'std', 'var']
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -2145,3 +2145,17 @@ def argmax(a, axis=None, out=None):
     array([2., 2.])
     """
     return _npi.argmax(a, axis=axis, keepdims=False, out=out)
+
+
+@set_module('mxnet.ndarray.numpy')
+def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    """
+    """
+    return _npi.std(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)
+
+
+@set_module('mxnet.ndarray.numpy')
+def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    """
+    """
+    return _npi.var(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)

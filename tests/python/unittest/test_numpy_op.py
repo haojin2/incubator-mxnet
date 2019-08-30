@@ -179,7 +179,7 @@ def test_np_dot():
         ((3, 4, 5), (5, )),  # Case 4
         ((3, 4, 5), (5, 2)), # Case 5
         ((5,), (5, 2)),
-        ((3, 5, 4), (5, 4, 3)),  
+        ((3, 5, 4), (5, 4, 3)),
         ((3, 4), (5, 4, 3)),
         ((4,), (5, 4, 3))
     ]
@@ -262,7 +262,7 @@ def test_np_sum():
                                             atol=1e-5 if dtype == 'float16' else 1e-5, use_broadcast=False)
 
                         y.backward()
-                        assert same(x.grad.asnumpy(), _np.ones(shape=x.shape, dtype=x.dtype))
+                        assert_almost_equal(x.grad.asnumpy(), _np.ones(shape=x.shape, dtype=x.dtype))
 
                         # test numeric
                         if itype == 'float32' and dtype == 'float32':
@@ -275,6 +275,93 @@ def test_np_sum():
                         mx_out = np.sum(x, axis=axis, dtype=dtype, keepdims=keepdims)
                         np_out = _np.sum(x.asnumpy(), axis=axis, dtype=acc_type[itype], keepdims=keepdims).astype(dtype)
                         assert_almost_equal(mx_out.asnumpy(), np_out, rtol=1e-3, atol=1e-5, use_broadcast=False)
+
+
+@with_seed()
+@use_np
+def test_np_moment():
+    class TestMoment(HybridBlock):
+        def __init__(self, name, axis=None, dtype=None, keepdims=False, ddof=0):
+            super(TestMoment, self).__init__()
+            self._name = name
+            self._axis = axis
+            self._dtype = dtype
+            self._keepdims = keepdims
+            self._ddof = ddof
+
+        def hybrid_forward(self, F, a, *args, **kwargs):
+            return getattr(F.np, self._name)(a, axis=self._axis, dtype=self._dtype, keepdims=self._keepdims, ddof=self._ddof)
+
+    def is_int(dtype):
+        return 'int' in dtype
+
+    def np_moment_grad(data, name, axis=None, atype=None, keepdims=None, ddof=0):
+        mean = _np.mean(data, axis=axis, dtype=atype, keepdims=keepdims).astype(data.dtype)
+        N = data.size // mean.size
+        grad = (data - mean) / (N - ddof)
+        if name == 'std':
+            grad = grad / _np.std(data, axis=axis, dtype=atype, ddof=ddof, keepdims=keepdims).astype(data.dtype)
+        else name == 'var':
+            grad *= 2.0
+        return grad
+
+    def legalize_shape(shape):
+        shape_ = list(shape)
+        for i in range(len(shape_)):
+            shape_[i] += 1
+        return tuple(shape_)
+
+    in_data_dim = random.choice([2, 3, 4])
+    shape = rand_shape_nd(in_data_dim, dim=3)
+    shape = legalize_shape(shape)
+    acc_type = {'float16': 'float32', 'float32': 'float64', 'float64': 'float64',
+                'int8': 'float64', 'int32': 'float64', 'int64': 'float64'}
+    print(shape)
+    for name in ['var', 'std']:
+        for hybridize in [False, True]:
+            for ddof in [0, 1]:
+                for keepdims in [True, False]:
+                    for axis in ([i for i in range(in_data_dim)] + [(), None]):
+                        for itype in ['float16', 'float32', 'float64', 'int8', 'int32', 'int64']:
+                            for dtype in ['float16', 'float32', 'float64']:
+                                if is_int(dtype) and not is_int(itype) or is_int(itype) and is_int(dtype):
+                                    continue
+                                atol = 1e-4 if itype == 'float16' or dtype == 'float16' else 1e-5
+                                rtol = 1e-2 if itype == 'float16' or dtype == 'float16' else 1e-3
+                                # test gluon
+                                test_moment = TestMoment(name, axis=axis, dtype=dtype, keepdims=keepdims, ddof=ddof)
+                                if hybridize:
+                                    test_moment.hybridize()
+                                if is_int(itype):
+                                    x = _np.random.randint(-16, 16, shape, dtype=itype)
+                                    x = mx.nd.array(x)
+                                else:
+                                    x = mx.nd.random.uniform(-1.0, 1.0, shape=shape, dtype=itype)
+                                x = x.as_np_ndarray()
+                                x.attach_grad()
+                                print(name, ddof, keepdims, axis, itype, dtype, shape)
+                                expected_ret = getattr(_np, name)(x.asnumpy(), axis=axis, dtype=acc_type[itype], keepdims=keepdims, ddof=ddof)
+                                expected_ret = expected_ret.astype(dtype)
+                                with mx.autograd.record():
+                                    y = test_moment(x)
+                                assert y.shape == expected_ret.shape
+                                assert_almost_equal(y.asnumpy(), expected_ret, rtol=rtol, atol=atol, use_broadcast=False, equal_nan=True)
+
+                                y.backward()
+                                np_backward = np_moment_grad(x.asnumpy(), name, axis=axis, atype=acc_type[itype], keepdims=keepdims, ddof=ddof)
+                                assert_almost_equal(x.grad.asnumpy(), np_backward, rtol=rtol, atol=atol)
+
+                                # test numeric
+                                if itype == 'float32' and dtype == 'float32' and axis != ():
+                                    x_sym = mx.sym.Variable("x").as_np_ndarray()
+                                    mx_sym = getattr(mx.sym.np, name)(x_sym, axis=axis, dtype=dtype, keepdims=keepdims, ddof=ddof).as_nd_ndarray()
+                                    check_numeric_gradient(mx_sym, [x.as_nd_ndarray()], numeric_eps=1e-3, rtol=1e-2, atol=1e-4,
+                                                           dtype=_np.float32)
+
+                                # test imperative
+                                mx_out = getattr(np, name)(x, axis=axis, dtype=dtype, keepdims=keepdims, ddof=ddof)
+                                np_out = getattr(_np, name)(x.asnumpy(), axis=axis, dtype=acc_type[itype], keepdims=keepdims, ddof=ddof).astype(dtype)
+                                assert_almost_equal(mx_out.asnumpy(), np_out, rtol=rtol, atol=atol, use_broadcast=False, equal_nan=True)
 
 
 @with_seed()

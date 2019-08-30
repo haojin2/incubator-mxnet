@@ -35,7 +35,7 @@ __all__ = ['zeros', 'ones', 'add', 'subtract', 'multiply', 'divide', 'mod', 'pow
            'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor',
            'trunc', 'logical_not', 'arcsinh', 'arccosh', 'arctanh', 'tensordot',
            'linspace', 'expand_dims', 'tile', 'arange', 'split', 'concatenate', 'stack',
-           'maximum', 'minimum', 'swapaxes', 'clip', 'argmax']
+           'maximum', 'minimum', 'swapaxes', 'clip', 'argmax', 'std', 'var']
 
 
 def _num_outputs(sym):
@@ -2506,6 +2506,20 @@ def argmax(a, axis=None, out=None):
 
     """
     return _npi.argmax(a, axis=axis, keepdims=False, out=out)
+
+
+@set_module('mxnet.symbol.numpy')
+def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=keepdims):
+    """
+    """
+    return _npi.std(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)
+
+
+@set_module('mxnet.symbol.numpy')
+def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=keepdims):
+    """
+    """
+    return _npi.var(a, axis=axis, dtype=dtype, ddof=ddof, keepdims=keepdims, out=out)
 
 
 _set_np_symbol_class(_Symbol)

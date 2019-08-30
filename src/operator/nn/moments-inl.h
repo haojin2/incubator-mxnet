@@ -162,10 +162,10 @@ inline void MomentsForward(const nnvm::NodeAttrs& attrs,
 
 template<int req>
 struct VarBackwardKernel {
-  template<typename DType>
+  template<typename DType, typename OType>
   MSHADOW_XINLINE static void Map(int i,
                                   DType *igrad,
-                                  const DType *ograd,
+                                  const OType *ograd,
                                   const DType *data,
                                   const DType *mean,
                                   mshadow::Shape<6> data_shape,
