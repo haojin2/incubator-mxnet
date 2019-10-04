@@ -830,13 +830,15 @@ class ContrastJitterAug(Augmenter):
     def __init__(self, contrast):
         super(ContrastJitterAug, self).__init__(contrast=contrast)
         self.contrast = contrast
-        self.coef = nd.array([[[0.299, 0.587, 0.114]]])
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        self.coef = array_fn([[[0.299, 0.587, 0.114]]])
 
     def __call__(self, src):
         """Augmenter body"""
         alpha = 1.0 + random.uniform(-self.contrast, self.contrast)
         gray = src * self.coef
-        gray = (3.0 * (1.0 - alpha) / gray.size) * nd.sum(gray)
+        sum_fn = _mx_np.sum if is_np_array() else nd.sum
+        gray = (3.0 * (1.0 - alpha) / gray.size) * sum_fn(gray)
         src *= alpha
         src += gray
         return src
@@ -853,13 +855,15 @@ class SaturationJitterAug(Augmenter):
     def __init__(self, saturation):
         super(SaturationJitterAug, self).__init__(saturation=saturation)
         self.saturation = saturation
-        self.coef = nd.array([[[0.299, 0.587, 0.114]]])
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        self.coef = array_fn([[[0.299, 0.587, 0.114]]])
 
     def __call__(self, src):
         """Augmenter body"""
         alpha = 1.0 + random.uniform(-self.saturation, self.saturation)
         gray = src * self.coef
-        gray = nd.sum(gray, axis=2, keepdims=True)
+        sum_fn = _mx_np.sum if is_np_array() else nd.sum
+        gray = sum_fn(gray, axis=2, keepdims=True)
         gray *= (1.0 - alpha)
         src *= alpha
         src += gray
@@ -896,7 +900,9 @@ class HueJitterAug(Augmenter):
                        [0.0, u, -w],
                        [0.0, w, u]])
         t = np.dot(np.dot(self.ityiq, bt), self.tyiq).T
-        src = nd.dot(src, nd.array(t))
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        dot_fn = _mx_np.dot if is_np_array() else nd.dot
+        src = dot_fn(src, array_fn(t))
         return src
 
 
@@ -945,7 +951,8 @@ class LightingAug(Augmenter):
         """Augmenter body"""
         alpha = np.random.normal(0, self.alphastd, size=(3,))
         rgb = np.dot(self.eigvec * alpha, self.eigval)
-        src += nd.array(rgb)
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        src += array_fn(rgb)
         return src
 
 
@@ -961,8 +968,9 @@ class ColorNormalizeAug(Augmenter):
     """
     def __init__(self, mean, std):
         super(ColorNormalizeAug, self).__init__(mean=mean, std=std)
-        self.mean = mean if mean is None or isinstance(mean, nd.NDArray) else nd.array(mean)
-        self.std = std if std is None or isinstance(std, nd.NDArray) else nd.array(std)
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        self.mean = mean if mean is None or isinstance(mean, nd.NDArray) else array_fn(mean)
+        self.std = std if std is None or isinstance(std, nd.NDArray) else array_fn(std)
 
     def __call__(self, src):
         """Augmenter body"""
@@ -980,14 +988,16 @@ class RandomGrayAug(Augmenter):
     def __init__(self, p):
         super(RandomGrayAug, self).__init__(p=p)
         self.p = p
-        self.mat = nd.array([[0.21, 0.21, 0.21],
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        self.mat = array_fn([[0.21, 0.21, 0.21],
                              [0.72, 0.72, 0.72],
                              [0.07, 0.07, 0.07]])
 
     def __call__(self, src):
         """Augmenter body"""
         if random.random() < self.p:
-            src = nd.dot(src, self.mat)
+            dot_fn = _mx_np.dot if is_np_array() else nd.dot
+            src = dot_fn(src, self.mat)
         return src
 
 
@@ -1006,7 +1016,8 @@ class HorizontalFlipAug(Augmenter):
     def __call__(self, src):
         """Augmenter body"""
         if random.random() < self.p:
-            src = nd.flip(src, axis=1)
+            flip_fn = _mx_np.flip if is_np_array() else nd.flip
+            src = flip_fn(src, axis=1)
         return src
 
 
@@ -1121,12 +1132,14 @@ def CreateAugmenter(data_shape, resize=0, rand_crop=False, rand_resize=False, ra
         auglist.append(RandomGrayAug(rand_gray))
 
     if mean is True:
-        mean = nd.array([123.68, 116.28, 103.53])
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        mean = array_fn([123.68, 116.28, 103.53])
     elif mean is not None:
         assert isinstance(mean, (np.ndarray, nd.NDArray)) and mean.shape[0] in [1, 3]
 
     if std is True:
-        std = nd.array([58.395, 57.12, 57.375])
+        array_fn = _mx_np.array if is_np_array() else nd.array
+        std = array_fn([58.395, 57.12, 57.375])
     elif std is not None:
         assert isinstance(std, (np.ndarray, nd.NDArray)) and std.shape[0] in [1, 3]
 

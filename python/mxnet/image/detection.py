@@ -140,7 +140,8 @@ class DetHorizontalFlipAug(DetAugmenter):
     def __call__(self, src, label):
         """Augmenter implementation"""
         if random.random() < self.p:
-            src = nd.flip(src, axis=1)
+            flip_fn = _mx_np.flip if is_np_array() else nd.flip
+            src = flip_fn(src, axis=1)
             self._flip_label(label)
         return (src, label)
 
