@@ -318,6 +318,7 @@ inline bool SGDStorageType(const nnvm::NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_OP(multi_sgd_update)
+.add_alias("_npi_multi_sgd_update")
 .describe(R"code(Update function for Stochastic Gradient Descent (SDG) optimizer.
 
 It updates the weights using::
@@ -351,6 +352,7 @@ It updates the weights using::
 .add_arguments(MultiSGDParam::__FIELDS__());
 
 NNVM_REGISTER_OP(multi_sgd_mom_update)
+.add_alias("_npi_multi_sgd_mom_update")
 .describe(R"code(Momentum update function for Stochastic Gradient Descent (SGD) optimizer.
 
 Momentum update has better convergence rates on neural networks. Mathematically it looks
@@ -406,6 +408,7 @@ Where the parameter ``momentum`` is the decay rate of momentum estimates at each
 .add_arguments(MultiSGDMomParam::__FIELDS__());
 
 NNVM_REGISTER_OP(multi_mp_sgd_update)
+.add_alias("_npi_multi_mp_sgd_update")
 .describe(R"code(Update function for multi-precision Stochastic Gradient Descent (SDG) optimizer.
 
 It updates the weights using::
@@ -449,6 +452,7 @@ It updates the weights using::
 .add_arguments(MultiSGDParam::__FIELDS__());
 
 NNVM_REGISTER_OP(multi_mp_sgd_mom_update)
+.add_alias("_npi_multi_mp_sgd_mom_update")
 .describe(R"code(Momentum update function for multi-precision Stochastic Gradient Descent (SGD) optimizer.
 
 Momentum update has better convergence rates on neural networks. Mathematically it looks
@@ -507,6 +511,7 @@ Where the parameter ``momentum`` is the decay rate of momentum estimates at each
 
 NNVM_REGISTER_OP(sgd_update)
 MXNET_ADD_SPARSE_OP_ALIAS(sgd_update)
+.add_alias("_npi_sgd_update")
 .describe(R"code(Update function for Stochastic Gradient Descent (SGD) optimizer.
 
 It updates the weights using::
@@ -534,6 +539,7 @@ only the row slices whose indices appear in grad.indices are updated::
 
 NNVM_REGISTER_OP(sgd_mom_update)
 MXNET_ADD_SPARSE_OP_ALIAS(sgd_mom_update)
+.add_alias("_npi_sgd_mom_update")
 .describe(R"code(Momentum update function for Stochastic Gradient Descent (SGD) optimizer.
 
 Momentum update has better convergence rates on neural networks. Mathematically it looks
@@ -587,6 +593,7 @@ only the row slices whose indices appear in grad.indices are updated (for both w
 .add_arguments(SGDMomParam::__FIELDS__());
 
 NNVM_REGISTER_OP(mp_sgd_update)
+.add_alias("_npi_mp_sgd_update")
 .describe("Updater function for multi-precision sgd optimizer")
 .set_num_inputs(3)
 .set_num_outputs(1)
@@ -604,6 +611,7 @@ NNVM_REGISTER_OP(mp_sgd_update)
 .add_arguments(SGDParam::__FIELDS__());
 
 NNVM_REGISTER_OP(mp_sgd_mom_update)
+.add_alias("_npi_mp_sgd_mom_update")
 .describe("Updater function for multi-precision sgd optimizer")
 .set_num_inputs(4)
 .set_num_outputs(1)

@@ -35,6 +35,7 @@ from ..ndarray import (sgd_update, sgd_mom_update, adam_update, rmsprop_update, 
                        multi_mp_sgd_mom_update, preloaded_multi_sgd_update,
                        preloaded_multi_sgd_mom_update, preloaded_multi_mp_sgd_update,
                        preloaded_multi_mp_sgd_mom_update)
+from ..ndarray.numpy import _internal as _npi
 from ..ndarray import sparse
 from ..random import normal
 from ..util import is_np_array
@@ -616,18 +617,22 @@ class SGD(Optimizer):
         if aggregate:
             if not multi_precision:
                 if self.momentum > 0:
-                    multi_sgd_mom_update(*_flatten_list(zip(weights, grads, states)), out=weights,
-                                         num_weights=len(weights), lrs=lrs, wds=wds, **kwargs)
+                    update_fn = _npi.multi_sgd_mom_update if is_np_array() else multi_sgd_mom_update
+                    update_fn(*_flatten_list(zip(weights, grads, states)), out=weights,
+                              num_weights=len(weights), lrs=lrs, wds=wds, **kwargs)
                 else:
-                    multi_sgd_update(*_flatten_list(zip(weights, grads)), out=weights,
+                    update_fn = _npi.multi_sgd_update if is_np_array() else multi_sgd_update
+                    update_fn(*_flatten_list(zip(weights, grads)), out=weights,
                                      num_weights=len(weights), lrs=lrs, wds=wds, **kwargs)
             else:
                 if self.momentum > 0:
-                    multi_mp_sgd_mom_update(*_flatten_list(zip(weights, grads, *zip(*states))),
+                    update_fn = _npi.multi_mp_sgd_mom_update if is_np_array() else multi_mp_sgd_mom_update
+                    update_fn(*_flatten_list(zip(weights, grads, *zip(*states))),
                                             out=weights, num_weights=len(weights),
                                             lrs=lrs, wds=wds, **kwargs)
                 else:
-                    multi_mp_sgd_update(*_flatten_list(zip(weights, grads,
+                    update_fn = _npi.multi_mp_sgd_update if is_np_array() else multi_mp_sgd_update
+                    update_fn(*_flatten_list(zip(weights, grads,
                                                            list(zip(*states))[1])),
                                         out=weights, num_weights=len(weights),
                                         lrs=lrs, wds=wds, **kwargs)
@@ -635,17 +640,21 @@ class SGD(Optimizer):
             for weight, grad, state, lr, wd in zip(weights, grads, states, lrs, wds):
                 if not multi_precision:
                     if state is not None:
-                        sgd_mom_update(weight, grad, state, out=weight,
+                        update_fn = _npi.sgd_mom_update if is_np_array() else sgd_mom_update
+                        update_fn(weight, grad, state, out=weight,
                                        lazy_update=self.lazy_update, lr=lr, wd=wd, **kwargs)
                     else:
-                        sgd_update(weight, grad, out=weight, lazy_update=self.lazy_update,
+                        update_fn = _npi.sgd_update if is_np_array() else sgd_update
+                        update_fn(weight, grad, out=weight, lazy_update=self.lazy_update,
                                    lr=lr, wd=wd, **kwargs)
                 else:
                     if state[0] is not None:
-                        mp_sgd_mom_update(weight, grad, state[0], state[1], out=weight,
+                        update_fn = _npi.mp_sgd_mom_update if is_np_array() else mp_sgd_mom_update
+                        update_fn(weight, grad, state[0], state[1], out=weight,
                                           lr=lr, wd=wd, **kwargs)
                     else:
-                        mp_sgd_update(weight, grad, state[1], out=weight,
+                        update_fn = _npi.mp_sgd_update if is_np_array() else mp_sgd_update
+                        update_fn(weight, grad, state[1], out=weight,
                                       lr=lr, wd=wd, **kwargs)
 
     def update(self, index, weight, grad, state):
@@ -1945,12 +1954,8 @@ class Updater(object):
         allow_np = self.optimizer.allow_np_array if hasattr(self.optimizer, "allow_np_array") else is_np_array()
         if not isinstance(index, (list, tuple)):
             indices = [index]
-            grads = [_as_classic(grad, allow_np)]
-            weights = [_as_classic(weight, allow_np)]
-        else:
-            indices = index
-            grads = _as_classic(grad, allow_np)
-            weights = _as_classic(weight, allow_np)
+            grads = [grad]
+            weights = [weight]
         if weights:
             self.optimizer._set_current_context(weights[0].context.device_id)
         for i, idx in enumerate(indices):
