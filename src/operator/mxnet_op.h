@@ -471,6 +471,12 @@ struct AccType<mshadow::half::half_t> {
       {__VA_ARGS__}                                        \
     }                                                      \
     break;                                                 \
+  case mshadow::kBool:                                     \
+    {                                                      \
+      typedef bool DType;                                  \
+      {__VA_ARGS__}                                        \
+    }                                                      \
+    break;                                                 \
   default:                                                 \
     LOG(FATAL) << "Unknown type enum " << type;            \
   }
@@ -659,7 +665,7 @@ template <typename xpu>
 MSHADOW_CINLINE void copy(mshadow::Stream<xpu> *s, const TBlob& to, const TBlob& from) {
   CHECK_EQ(from.Size(), to.Size());
   CHECK_EQ(from.dev_mask(), to.dev_mask());
-  MSHADOW_TYPE_SWITCH(to.type_flag_, DType, {
+  MSHADOW_TYPE_SWITCH_WITH_BOOL(to.type_flag_, DType, {
     if (to.type_flag_ == from.type_flag_) {
       mshadow::Copy(to.FlatTo1D<xpu, DType>(s), from.FlatTo1D<xpu, DType>(s), s);
     } else {
@@ -769,6 +775,55 @@ struct op_with_req {
            typename std::enable_if<!std::is_same<DType, bool>::value, int>::type = 0>
   MSHADOW_XINLINE static void Map(index_t i, bool *out, const DType *in, const DType value) {
     KERNEL_ASSIGN(out[i], req, OP::Map(in[i], value));
+  }
+
+
+  /*! \brief inputs are two tensors with a half_t output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i,
+                                  mshadow::half::half_t *out,
+                                  const DType *lhs,
+                                  const mshadow::half::half_t *rhs) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], rhs[i]));
+  }
+
+  /*! \brief inputs are two tensors with a float output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i, float *out, const DType *lhs, const float *rhs) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], rhs[i]));
+  }
+
+  /*! \brief inputs are two tensors with a double output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i, double *out, const DType *lhs, const double *rhs) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], rhs[i]));
+  }
+
+  /*! \brief inputs are two tensors with a half_t output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i,
+                                  mshadow::half::half_t *out,
+                                  const DType *lhs,
+                                  const mshadow::half::half_t value) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], value));
+  }
+
+  /*! \brief inputs are two tensors with a float output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i, float *out, const DType *lhs, const float value) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], value));
+  }
+
+  /*! \brief inputs are two tensors with a double output tensor */
+  template<typename DType,
+           typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static void Map(index_t i, double *out, const DType *lhs, const double value) {
+    KERNEL_ASSIGN(out[i], req, OP::Map(lhs[i], value));
   }
 
   /*! \brief inputs are two tensors with a float output tensor */
