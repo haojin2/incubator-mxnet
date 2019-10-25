@@ -190,6 +190,71 @@ MXNET_BINARY_MATH_OP_NC(right, b);
 
 MXNET_BINARY_MATH_OP_NC(mul, a * b);
 
+struct mixed_mul {
+  template<typename DType,
+           typename std::enable_if<!std::is_pointer<DType>::value, int>::type = 0>
+  MSHADOW_XINLINE static DType Map(bool a, DType b) {
+    return static_cast<DType>(a) * b;
+  }
+  // // Kernel 0: 1 of them is double, the other is any type
+  // template<typename DType>
+  // MSHADOW_XINLINE static double Map(double a, DType b) {
+  //   return a * static_cast<double>(b);
+  // }
+
+  // // Kernel 1: 1 of them is float, the other is float/half/integer
+  // template<typename DType,
+  //          typename std::enable_if<!std::is_same<DType, double>::value, int>::type = 0>
+  // MSHADOW_XINLINE static float Map(float a, DType b) {
+  //   return a * static_cast<float>(b);
+  // }
+
+  // // Kernel 2: 1 of them is half, the other is a half or integer
+  // template<typename DType,
+  //          typename std::enable_if<std::is_integral<DType>::value ||
+  //                                  std::is_same<DType, mshadow::half::half_t>::value, int>::type = 0>
+  // MSHADOW_XINLINE static float Map(mshadow::half::half_t a, DType b) {
+  //   return a * static_cast<mshadow::half::half_t>(b);
+  // }
+
+  // // Kernel 3: 1 of them is int64, the other is a lower/equal integer type
+  // template<typename DType,
+  //          typename std::enable_if<std::is_integral<DType>::value, int>::type = 0>
+  // MSHADOW_XINLINE static int64_t Map(int64_t a, DType b) {
+  //   return a * static_cast<int64_t>(b);
+  // }
+
+  // // Kernel 4: 1 of them is int32, the other is a lower/equal integer type
+  // template<typename DType,
+  //          typename std::enable_if<std::is_integral<DType>::value &&
+  //                                  !std::is_same<DType, int64_t>::value, int>::type = 0>
+  // MSHADOW_XINLINE static int32_t Map(int32_t a, DType b) {
+  //   return a * static_cast<int32_t>(b);
+  // }
+
+  // // Kernel 5: uint8 and int8, output is int32
+  // MSHADOW_XINLINE static int32_t Map(uint8_t a, int8_t b) {
+  //   return static_cast<int32_t>(a) * static_cast<int32_t>(b);
+  // }
+
+  // // Kernel 6: both int8/uint8 output is same
+  // template<typename DType,
+  //          typename std::enable_if<std::is_same<DType, uint8_t>::value ||
+  //                                  std::is_same<DType, int8_t>::value ||
+  //                                  std::is_same<DType, bool>::value, int>::type = 0>
+  // MSHADOW_XINLINE static DType Map(DType a, DType b) {
+  //   return a * b;
+  // }
+
+  // // Kernel 7: uint8/int8 with bool, output is uint8/int8
+  // template<typename DType,
+  //          typename std::enable_if<std::is_same<DType, int8_t>::value ||
+  //                                  std::is_same<DType, uint8_t>::value, int>::type = 0>
+  // MSHADOW_XINLINE static DType Map(DType a, bool b) {
+  //   return a * static_cast<DType>(b);
+  // }
+};
+
 MXNET_BINARY_MATH_OP_NC(div, a / b);
 
 MXNET_BINARY_MATH_OP_NC(plus, a + b);
