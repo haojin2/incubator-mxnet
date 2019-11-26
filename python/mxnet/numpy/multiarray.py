@@ -55,7 +55,7 @@ from . import fallback
 __all__ = ['ndarray', 'empty', 'empty_like', 'array', 'shape', 'median',
            'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like', 'all', 'any', 'broadcast_to',
            'add', 'subtract', 'multiply', 'divide', 'mod', 'remainder', 'fmod', 'power', 'bitwise_not',
-           'delete', 'trace', 'transpose',
+           'delete', 'trace', 'transpose', 'left_shift', 'right_shift',
            'arctan2', 'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh', 'log10', 'invert',
            'sqrt', 'cbrt', 'abs', 'absolute', 'fabs', 'exp', 'expm1', 'arcsin', 'arccos', 'arctan', 'sign', 'log',
            'degrees', 'log2', 'log1p', 'rint', 'radians', 'reciprocal', 'square', 'negative', 'histogram',
@@ -3367,6 +3367,71 @@ def power(x1, x2, out=None, **kwargs):
            [ 0.,  1.,  8., 27., 16.,  5.]])
     """
     return _mx_nd_np.power(x1, x2, out=out)
+
+
+@set_module('mxnet.ndarray.numpy')
+@wrap_np_binary_func
+def left_shift(x1, x2, out=None, **kwargs):
+    """
+    Shift the bits of an integer to the left.
+
+    Bits are shifted to the left by appending x2 0s at the right of x1. Since the internal
+    representation of numbers is in binary format, this operation is equivalent to multiplying
+    x1 by 2**x2.
+
+    Parameters
+    ----------
+    x1 : ndarray of integer type
+        Input values.
+
+    x2 : ndarray of integer type
+        Number of zeros to append to x1. Has to be non-negative. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+
+    out : ndarray or None, optional
+        A location into which the result is stored. If provided, it must have a shape
+        that the inputs broadcast to. If not provided or None, a freshly-allocated array
+        is returned.
+
+    Returns
+    -------
+    out : ndarray or scalar
+        Return x1 with bits shifted x2 times to the left.
+        This is a scalar if both x1 and x2 are scalars.
+    """
+    return _mx_nd_np.left_shift(x1, x2, out=out)
+
+
+@set_module('mxnet.ndarray.numpy')
+@wrap_np_binary_func
+def right_shift(x1, x2, out=None, **kwargs):
+    """
+    Shift the bits of an integer to the right.
+
+    Bits are shifted to the right x2. Because the internal representation of numbers is in binary
+    format, this operation is equivalent to dividing x1 by 2**x2.
+
+    Parameters
+    ----------
+    x1 : ndarray of integer type
+        Input values.
+
+    x2 : ndarray or scalar
+        Number of bits to remove at the right of x1. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+
+    out : ndarray or None, optional
+        A location into which the result is stored. If provided, it must have a shape
+        that the inputs broadcast to. If not provided or None, a freshly-allocated array
+        is returned.
+
+    Returns
+    -------
+    out : ndarray or scalar
+        Return x1 with bits shifted x2 times to the right.
+        This is a scalar if both x1 and x2 are scalars.
+    """
+    return _mx_nd_np.right_shift(x1, x2, out=out)
 
 
 @set_module('mxnet.numpy')

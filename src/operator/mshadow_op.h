@@ -637,6 +637,14 @@ MXNET_BINARY_MATH_OP(bitwise_xor, static_cast<int64_t>(a) ^ static_cast<int64_t>
 
 MXNET_BINARY_MATH_OP(bitwise_or, static_cast<int64_t>(a) | static_cast<int64_t>(b));
 
+MXNET_BINARY_MATH_OP(left_shift, static_cast<int64_t>(a << b));
+
+MXNET_BINARY_MATH_OP(rleft_shift, static_cast<int64_t>(b << a));
+
+MXNET_BINARY_MATH_OP(right_shift, static_cast<int64_t>(a >> b));
+
+MXNET_BINARY_MATH_OP(rright_shift, static_cast<int64_t>(b >> a));
+
 MXNET_UNARY_MATH_OP(square_root, math::sqrt(a));
 
 MXNET_UNARY_MATH_OP(square_root_grad, 0.5f / math::id(a));

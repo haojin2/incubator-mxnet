@@ -2417,6 +2417,8 @@ def test_np_binary_funcs():
         'bitwise_and': (-100, 100, [None], None, [[_np.int32]]),
         'bitwise_xor': (-100, 100, [None], None, [[_np.int32]]),
         'bitwise_or': (-100, 100, [None], None, [[_np.int32]]),
+        'left_shift': (0, 10, [None], None, [[_np.int32]]),
+        'right_shift': (0, 10, [None], None, [[_np.int32]]),
         'maximum': (-1, 1, [lambda y, x1, x2: _np.ones(y.shape) * (x1 >= x2)],
                            [lambda y, x1, x2: _np.ones(y.shape) * (x1 < x2)]),
         'fmax': (-1, 1, [lambda y, x1, x2: _np.ones(y.shape) * (x1 >= x2)],

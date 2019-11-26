@@ -37,7 +37,7 @@ except ImportError:
 
 __all__ = ['zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_like', 'empty_like', 'bitwise_not', 'invert',
            'delete', 'add', 'broadcast_to', 'subtract', 'multiply', 'divide', 'mod', 'remainder', 'fmod',
-           'power', 'arctan2', 'trace', 'transpose',
+           'power', 'arctan2', 'trace', 'transpose', 'left_shift', 'right_shift',
            'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh', 'log10', 'sqrt', 'cbrt', 'abs', 'absolute', 'fabs', 'exp',
            'expm1', 'arcsin', 'arccos', 'arctan', 'sign', 'log', 'degrees', 'log2', 'log1p', 'matmul', 'median',
            'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor', 'histogram', 'insert',
@@ -1695,6 +1695,72 @@ def matmul(a, b, out=None, **kwargs):
       respecting the signature (n,k),(k,m)->(n,m).
     """
     return _npi.matmul(a, b, out=out)
+
+
+@set_module('mxnet.symbol.numpy')
+@wrap_np_binary_func
+def left_shift(x1, x2, out=None, **kwargs):
+    """
+    Shift the bits of an integer to the left.
+
+    Bits are shifted to the left by appending x2 0s at the right of x1. Since the internal
+    representation of numbers is in binary format, this operation is equivalent to multiplying
+    x1 by 2**x2.
+
+    Parameters
+    ----------
+    x1 : _Symbol or scalar of integer type
+        Input values.
+
+    x2 : _Symbol or scalar of integer type
+        Number of zeros to append to x1. Has to be non-negative. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+
+    out : _Symbol or None, optional
+        A location into which the result is stored. If provided, it must have a shape
+        that the inputs broadcast to. If not provided or None, a freshly-allocated array
+        is returned.
+
+    Returns
+    -------
+    out : _Symbol or scalar
+        Return x1 with bits shifted x2 times to the left.
+        This is a scalar if both x1 and x2 are scalars.
+    """
+    return _ufunc_helper(x1, x2, _npi.left_shift, _np.left_shift, _npi.left_shift_scalar, _npi.rleft_shift_scalar, out)
+
+
+@set_module('mxnet.symbol.numpy')
+@wrap_np_binary_func
+def right_shift(x1, x2, out=None, **kwargs):
+    """
+    Shift the bits of an integer to the right.
+
+    Bits are shifted to the right x2. Because the internal representation of numbers is in binary
+    format, this operation is equivalent to dividing x1 by 2**x2.
+
+    Parameters
+    ----------
+    x1 : _Symbol or scalar of integer type
+        Input values.
+
+    x2 : _Symbol or scalar of integer type
+        Number of bits to remove at the right of x1. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+
+    out : _Symbol or None, optional
+        A location into which the result is stored. If provided, it must have a shape
+        that the inputs broadcast to. If not provided or None, a freshly-allocated array
+        is returned.
+
+    Returns
+    -------
+    out : _Symbol or scalar
+        Return x1 with bits shifted x2 times to the right.
+        This is a scalar if both x1 and x2 are scalars.
+    """
+    return _ufunc_helper(x1, x2, _npi.right_shift, _np.right_shift, _npi.right_shift_scalar,
+                         _npi.rright_shift_scalar, out)
 
 
 @set_module('mxnet.symbol.numpy')

@@ -98,6 +98,13 @@ struct static_init_var {
   __macro$(__VA_ARGS__, int64_t); \
   __macro$(__VA_ARGS__, bool)
 
+#define MSHADOW_MACRO_FOREACH_INT_TYPE(__macro$, ...) \
+  __macro$(__VA_ARGS__, uint8_t); \
+  __macro$(__VA_ARGS__, int8_t); \
+  __macro$(__VA_ARGS__, int32_t); \
+  __macro$(__VA_ARGS__, int64_t); \
+  __macro$(__VA_ARGS__, bool)
+
 #define IMPLEMENT_WORKLOAD_VALUE_FOR_TYPE(__op$, __typ$) \
   namespace mxnet_op { \
   template<> std::vector<float> mxnet::op::mxnet_op::tuned_op<__op$, __typ$>::workload_ = \
@@ -214,6 +221,9 @@ struct static_init_var {
 
 #define IMPLEMENT_BINARY_WORKLOAD_FWD_WITH_BOOL(__op$) \
   MSHADOW_MACRO_FOREACH_TYPE_WITH_BOOL(_IMPLEMENT_BINARY_WORKLOAD_FWD, __op$)
+
+#define IMPLEMENT_BINARY_WORKLOAD_FWD_INT_ONLY(__op$) \
+  MSHADOW_MACRO_FOREACH_INT_TYPE(_IMPLEMENT_BINARY_WORKLOAD_FWD, __op$)
 
 #define IMPLEMENT_BINARY_WORKLOAD_BWD(__op$) \
   MSHADOW_MACRO_FOREACH_TYPE(_IMPLEMENT_BINARY_WORKLOAD_BWD, __op$)
@@ -415,6 +425,10 @@ IMPLEMENT_BINARY_WORKLOAD_BWD(mxnet::op::mshadow_op::logical_xor);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_FWD_WITH_BOOL(mxnet::op::mshadow_op::bitwise_and);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_FWD_WITH_BOOL(mxnet::op::mshadow_op::bitwise_xor);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_FWD_WITH_BOOL(mxnet::op::mshadow_op::bitwise_or);  // NOLINT()
+IMPLEMENT_BINARY_WORKLOAD_FWD_INT_ONLY(mxnet::op::mshadow_op::left_shift);  // NOLINT()
+IMPLEMENT_BINARY_WORKLOAD_FWD_INT_ONLY(mxnet::op::mshadow_op::rleft_shift);  // NOLINT()
+IMPLEMENT_BINARY_WORKLOAD_FWD_INT_ONLY(mxnet::op::mshadow_op::right_shift);  // NOLINT()
+IMPLEMENT_BINARY_WORKLOAD_FWD_INT_ONLY(mxnet::op::mshadow_op::rright_shift);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_FWD(mxnet::op::mshadow_op::smooth_l1_loss);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_BWD(mxnet::op::mshadow_op::smooth_l1_gradient);  // NOLINT()
 IMPLEMENT_BINARY_WORKLOAD_FWD_WITH_BOOL(mxnet::op::mshadow_op::lcm);  // NOLINT()
