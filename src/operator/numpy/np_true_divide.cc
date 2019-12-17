@@ -29,12 +29,9 @@ namespace mxnet {
 namespace op {
 
 int TrueDivideOutType(int ltype, int rtype) {
-  if (common::is_float(ltype) && common::is_float(rtype)) {
-    // If both inputs are float, return the one with the higher precision
+  if (common::is_float(ltype) || common::is_float(rtype)) {
+    // If either of inputs is float, return the one with the higher precision
     return common::get_more_precise_type(ltype, rtype);
-  } else if (common::is_float(ltype) || common::is_float(rtype)) {
-    // If only one of the inputs is float, return that float type
-    return (common::is_float(ltype)) ? ltype : rtype;
   }
   // If neither of the inputs is float, return the default float32 type
   return mshadow::kFloat32;
@@ -80,9 +77,24 @@ NNVM_REGISTER_OP(_npi_true_divide)
   })
 #endif
 .set_attr<FCompute>("FCompute<cpu>", TrueDivideBroadcastCompute<cpu>)
-.set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseIn{"_backward_broadcast_div"})
+.set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseIn{"_backward_npi_broadcast_div"})
 .add_argument("lhs", "NDArray-or-Symbol", "Dividend array")
 .add_argument("rhs", "NDArray-or-Symbol", "Divisor array");
+
+NNVM_REGISTER_OP(_backward_npi_broadcast_div)
+.set_num_inputs(3)
+.set_num_outputs(2)
+.set_attr<nnvm::TIsBackward>("TIsBackward", true)
+.set_attr<nnvm::FInplaceOption>("FInplaceOption",
+  [](const NodeAttrs& attrs){
+    return std::vector<std::pair<int, int> >{{0, 1}};
+  })
+.set_attr<FResourceRequest>("FResourceRequest",
+  [](const NodeAttrs& attrs) {
+    return std::vector<ResourceRequest>{ResourceRequest::kTempSpace};
+  })
+.set_attr<FCompute>("FCompute<cpu>", NumpyBinaryBackwardUseIn<cpu, mshadow_op::div_grad,
+                                                              mshadow_op::div_rgrad>);
 
 NNVM_REGISTER_OP(_npi_true_divide_scalar)
 .set_num_inputs(1)

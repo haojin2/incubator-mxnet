@@ -27,6 +27,7 @@
 #define MXNET_OPERATOR_NUMPY_NP_TRUE_DIVIDE_INL_H_
 
 #include <vector>
+#include "./np_elemwise_broadcast_op.h"
 #include "../../common/utils.h"
 #include "../tensor/elemwise_binary_broadcast_op.h"
 

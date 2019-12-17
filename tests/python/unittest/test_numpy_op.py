@@ -7598,6 +7598,55 @@ def test_np_rand():
 @with_seed()
 @use_np
 def test_np_true_divide():
+    class TestTrueDivideTensor(HybridBlock):
+        def __init__(self):
+            super(TestTrueDivideTensor,self).__init__()
+
+        def hybrid_forward(self, F, a, b):
+            return a / b
+
+    class TestTrueDivideScalar(HybridBlock):
+        def __init__(self, val):
+            super(TestTrueDivideScalar,self).__init__()
+            self._val = val
+
+        def hybrid_forward(self, F, a):
+            return a / self._val
+
+    class TestRTrueDivideScalar(HybridBlock):
+        def __init__(self, val):
+            super(TestRTrueDivideScalar,self).__init__()
+            self._val = val
+
+        def hybrid_forward(self, F, a):
+            return self._val / a
+
+    def is_integer(dtype):
+        return _np.issubdtype(dtype, _np.integer) or (dtype is np.bool)
+
+    def np_backward(a, b, y):
+        agrad = None if is_integer(a.dtype) else collapse_sum_like(_np.ones(y.shape) / b, a.shape)
+        bgrad = None if is_integer(b.dtype) else collapse_sum_like(-1.0 * a / (b * b), b.shape)
+        return agrad, bgrad
+
+    def more_precise_ftype(ltype, rtype):
+        if ltype == np.float64 or rtype == np.float64:
+            return np.float64
+        elif ltype == np.float32 or rtype == np.float32:
+            return np.float32
+        return np.float16
+
+    def expected_otype(ltype, rtype=None):
+        if rtype is None:
+            rtype = ltype
+        if is_integer(ltype) and is_integer(rtype):
+            return np.float32
+        elif is_integer(ltype):
+            return rtype
+        elif is_integer(rtype):
+            return ltype
+        return more_precise_ftype(ltype, rtype)
+
     shapes = [
         [()],
         [(0,)],
@@ -7616,42 +7665,84 @@ def test_np_true_divide():
         [(2, 3, 1), (1, 4)],
         [(2, 1, 4, 1), (3, 1, 5)],
     ]
+
     dtypes = [np.bool, np.int8, np.uint8, np.int32, np.int64, np.float16, np.float32, np.float64]
     itypes = [np.bool, np.int8, np.uint8, np.int32, np.int64]
     ftypes = [np.float16, np.float32, np.float64]
+
+    val = _np.random.randint(3, 50)
+
     for shape_pair, dtype in itertools.product(shapes, dtypes):
         a = np.random.uniform(3, 50, size=shape_pair[0]).astype(dtype)
         b = np.random.uniform(3, 50, size=shape_pair[-1]).astype(dtype)
-        out_mx = a / b
-        if _np.issubdtype(dtype, _np.integer) or (dtype is np.bool):
-            assert out_mx.dtype == np.float32
-        else:
-            assert out_mx.dtype == dtype
-        out_np = _np.true_divide(a.asnumpy(), b.asnumpy())
-        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
 
-        val = _np.random.randint(3, 50)
-        out_mx = a / val
-        out_np = _np.true_divide(a.asnumpy(), val)
-        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+        a.attach_grad()
+        b.attach_grad()
 
-        out_mx = val / a
-        out_np = _np.true_divide(val, a.asnumpy())
-        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+        rtol, atol = (1e-2, 1e-3) if dtype == np.float16 else (1e-3, 1e-3)
+
+        for hybridize in [True, False]:
+            test_true_divide = TestTrueDivideTensor()
+            test_true_divide_scalar = TestTrueDivideScalar(val)
+            test_rtrue_divide_scalar = TestRTrueDivideScalar(val)
+
+            if hybridize:
+                test_true_divide.hybridize()
+                test_true_divide_scalar.hybridize()
+                test_rtrue_divide_scalar.hybridize()
+            with mx.autograd.record():
+                out_mx = test_true_divide(a, b)
+            out_np = _np.true_divide(a.asnumpy(), b.asnumpy())
+            assert_almost_equal(out_mx.asnumpy(), out_np, rtol=rtol, atol=atol, use_broadcast=False)
+            assert out_mx.dtype == expected_otype(dtype)
+
+            if not is_integer(dtype):
+                # check gradient for floating point data types
+                out_mx.backward()
+                expected_a_grad, expected_b_grad = np_backward(a.asnumpy(), b.asnumpy(), out_np)
+                assert_almost_equal(a.grad.asnumpy(), expected_a_grad, rtol=rtol, atol=atol, equal_nan=True)
+                assert_almost_equal(b.grad.asnumpy(), expected_b_grad, rtol=rtol, atol=atol, equal_nan=True)
+
+            out_mx = test_true_divide_scalar(a)
+            out_np = _np.true_divide(a.asnumpy(), val)
+            assert_almost_equal(out_mx.asnumpy(), out_np, rtol=rtol, atol=atol, use_broadcast=False)
+
+            out_mx = test_rtrue_divide_scalar(a)
+            out_np = _np.true_divide(val, a.asnumpy())
+            assert_almost_equal(out_mx.asnumpy(), out_np, rtol=rtol, atol=atol, use_broadcast=False)
 
     for shape_pair, itype, ftype in itertools.product(shapes, itypes, ftypes):
         i_ = np.random.uniform(3, 50, size=shape_pair[0]).astype(itype)
         f_ = np.random.uniform(3, 50, size=shape_pair[-1]).astype(ftype)
 
-        out_mx = i_ / f_
-        assert out_mx.dtype == ftype
-        out_np = _np.true_divide(i_.asnumpy(), f_.asnumpy())
-        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+        f_.attach_grad()
+        i_.attach_grad()
 
-        out_mx = f_ / i_
-        assert out_mx.dtype == ftype
-        out_np = _np.true_divide(f_.asnumpy(), i_.asnumpy())
-        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+        rtol, atol = (1e-2, 1e-3) if ftype == np.float16 else (1e-3, 1e-3)
+
+        for hybridize in [True, False]:
+            test_true_divide = TestTrueDivideTensor()
+
+            if hybridize:
+                test_true_divide.hybridize()
+
+            with mx.autograd.record():
+                out_mx = test_true_divide(i_, f_)
+            assert out_mx.dtype == ftype
+            out_np = _np.true_divide(i_.asnumpy(), f_.asnumpy())
+            assert_almost_equal(out_mx.asnumpy(), out_np, rtol=rtol, atol=atol, use_broadcast=False)
+            out_mx.backward()
+            assert_almost_equal(f_.grad.asnumpy(), np_backward(i_.asnumpy(), f_.asnumpy(), out_np)[1],
+                                rtol=rtol, atol=atol, equal_nan=True)
+
+            with mx.autograd.record():
+                out_mx = test_true_divide(f_, i_)
+            assert out_mx.dtype == ftype
+            out_np = _np.true_divide(f_.asnumpy(), i_.asnumpy())
+            assert_almost_equal(out_mx.asnumpy(), out_np, rtol=rtol, atol=atol, use_broadcast=False)
+            out_mx.backward()
+            assert_almost_equal(f_.grad.asnumpy(), np_backward(f_.asnumpy(), i_.asnumpy(), out_np)[0],
+                                rtol=rtol, atol=atol, equal_nan=True)
 
 
 @with_seed()

@@ -478,10 +478,25 @@ void NumpyBinaryBackwardUseIn(const nnvm::NodeAttrs& attrs,
   const TBlob& lgrad = outputs[0];
   const TBlob& rgrad = outputs[1];
 
+  Stream<xpu> *s = ctx.get_stream<xpu>();
+
+  if (ograd.Size() == 0) {
+    if (lgrad.Size() != 0 && req[0] == kWriteTo && common::is_float(lgrad.type_flag_)) {
+      MSHADOW_REAL_TYPE_SWITCH(lgrad.type_flag_, LType, {
+        Kernel<set_zero, xpu>::Launch(s, lgrad.Size(), lgrad.dptr<LType>());
+      });
+    }
+    if (rgrad.Size() != 0 && req[1] == kWriteTo && common::is_float(rgrad.type_flag_)) {
+      MSHADOW_REAL_TYPE_SWITCH(rgrad.type_flag_, RType, {
+        Kernel<set_zero, xpu>::Launch(s, rgrad.Size(), rgrad.dptr<RType>());
+      });
+    }
+    return;
+  }
+
   if (common::is_float(lhs.type_flag_) || common::is_float(rhs.type_flag_)) {
     // If any of the inputs is a float, it's the same type as the output
     // So 2 of the 3 tensors have the same data type
-    Stream<xpu> *s = ctx.get_stream<xpu>();
     mxnet::TShape new_lshape, new_rshape, new_oshape;
     using namespace broadcast;
     const bool need_bc = BinaryBroadcastShapeCompact(lgrad.shape_, rgrad.shape_, ograd.shape_,
